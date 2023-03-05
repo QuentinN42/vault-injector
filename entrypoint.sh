@@ -37,7 +37,17 @@ function check_env() {
 
 
 function read_vault() {
-    vault read -format=json "${1}" | jq -re ".data"
+    engines="${1}"
+    secrets="${2}"
+    field="${3}"
+    if [[ -z "${engines}" ]] || [[ -z "${secrets}" ]]; then
+        raise "Invalid arguments, need engines and secrets"
+    fi
+    if [[ -z "${field}" ]]; then
+        vault read -format=json "${engines}/${secrets}" | jq -r '.data' || return 1
+    else
+        vault read -format=json -field="${field}" "${engines}/${secrets}" | jq -r || return 1
+    fi
 }
 
 
