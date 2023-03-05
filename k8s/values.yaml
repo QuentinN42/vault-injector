@@ -2,7 +2,13 @@
 
 config:
   env:
-    - name: X
-      engines: test
-      secrets: test
+    - name: C
       field: A
+      engine: test
+      secret: test
+    - field: A
+      engine: test
+      secret: test
+    - name: B
+      engine: test
+      secret: test

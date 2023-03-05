@@ -37,16 +37,16 @@ function check_env() {
 
 
 function read_vault() {
-    engines="${1}"
-    secrets="${2}"
+    engine="${1}"
+    secret="${2}"
     field="${3}"
-    if [[ -z "${engines}" ]] || [[ -z "${secrets}" ]]; then
-        raise "Invalid arguments, need engines and secrets"
+    if [[ -z "${engine}" ]] || [[ -z "${secret}" ]]; then
+        raise "Invalid arguments, need engine and secret"
     fi
     if [[ -z "${field}" ]]; then
-        vault read -format=json "${engines}/${secrets}" | jq -r '.data' || return 1
+        vault read -format=json "${engine}/${secret}" | jq -r '.data' || return 1
     else
-        vault read -format=json -field="${field}" "${engines}/${secrets}" | jq -r || return 1
+        vault read -format=json -field="${field}" "${engine}/${secret}" | jq -r || return 1
     fi
 }
 
