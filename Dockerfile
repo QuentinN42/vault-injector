@@ -7,10 +7,10 @@ FROM debian:bullseye-slim
 #  - jq          https://manpages.org/jq
 RUN apt-get update &&\
     apt-get install -y wget unzip jq &&\
-    wget "https://releases.hashicorp.com/vault/1.10.3/vault_1.10.3_linux_amd64.zip" -O /tmp/vault.zip &&\
+    wget -q "https://releases.hashicorp.com/vault/1.10.3/vault_1.10.3_linux_amd64.zip" -O /tmp/vault.zip &&\
     unzip -d /usr/bin /tmp/vault.zip &&\
     chmod 555 /usr/bin/vault &&\
-    wget "https://dl.k8s.io/release/v1.26.2/bin/linux/amd64/kubectl" -O /usr/bin/kubectl &&\
+    wget -q "https://dl.k8s.io/release/v1.26.2/bin/linux/amd64/kubectl" -O /usr/bin/kubectl &&\
     chmod 555 /usr/bin/kubectl &&\
     apt-get purge -y wget unzip &&\
     apt-get autoremove -y &&\

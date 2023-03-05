@@ -43,7 +43,8 @@ function read_vault() {
 
 function login_vault() {
     echo "Logging in to vault..."
-    vault login -no-print -non-interactive -method=userpass username="${VAULT_USER}" password="${VAULT_PASS}" || exit 1
+    vault login -no-print -non-interactive -method=userpass username="${VAULT_USER}" password="${VAULT_PASS}" || return 1
+    echo "Done"
 }
 
 
@@ -53,7 +54,9 @@ function login_vault() {
 function main() {
     check_env VAULT_ADDR VAULT_PASS VAULT_USER
 
-    login_vault
+    login_vault || raise "Failed to login to vault"
 
     bash
 }
+
+main
