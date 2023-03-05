@@ -60,6 +60,9 @@ spec:
           args:
             - "-c"
             - 'source ./entrypoint.sh ; while true; do get_config ; sleep 1; done'
+          envFrom:
+            - secretRef:
+                name: "vault"
           resources:
             limits:
               cpu: 100m

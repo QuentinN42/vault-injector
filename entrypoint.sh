@@ -62,7 +62,7 @@ function login_vault() {
 
 
 function get_current_pod_annotations() {
-    kubectl get "pods/$(hostname)" -o json | jq '.metadata.annotations'
+    kubectl get "pods/$(hostname)" -o json | jq -rc '.metadata.annotations'
 }
 
 
@@ -70,7 +70,44 @@ function get_current_pod_annotations() {
 
 
 function get_config() {
-    get_current_pod_annotations | jq -r '.["vault-injector.io/config"]' | jq
+    annotations=$(get_current_pod_annotations)
+    echo "${annotations}"
+
+    version=$(echo "${annotations}" | jq -cr '.["vault-injector.io/version"]' || raise "Failed to get version")
+
+    if [[ ! "${version}" = "dev" ]]; then
+        raise "Invalid version '${version}'"
+    fi
+
+    config=$(echo "${annotations}" | jq -cr '.["vault-injector.io/config"]' || raise "Failed to get config")
+
+    # Parse env
+    for env in $(echo "${config}" | jq -rc '.env[] | .');
+    do
+        name=$(echo "${env}" | jq -rc '.name')
+        field=$(echo "${env}" | jq -rc '.field')
+        engine=$(echo "${env}" | jq -rc '.engine')
+        secret=$(echo "${env}" | jq -rc '.secret')
+        if [[ -z "${name}" ]] || [[ -z "${field}" ]];
+        then
+            if [[ -z "${name}" ]] && [[ -z "${field}" ]];
+            then
+                raise "Invalid env config, need name or field"
+            fi
+            if [[ -z "${name}" ]];
+            then
+                name="${field}"
+            else
+                field="${name}"
+            fi
+        fi
+        if [[ -z "${engine}" ]] || [[ -z "${secret}" ]];
+        then
+            raise "Invalid env config, need engine and secret"
+        fi
+        val=$(read_vault "${engine}" "${secret}" "${field}")
+        echo "${name} = ${val}"
+    done
 }
 
 
