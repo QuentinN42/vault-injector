@@ -1,2 +1,8 @@
 ---
 
+config:
+  env:
+    - name: X
+      engines: test
+      secrets: test
+      field: A

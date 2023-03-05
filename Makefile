@@ -18,5 +18,5 @@ deploy: build
 	$(info Please edit .env file to set your environment variables)
 	@exit 1
 
-rollout:
+rollout: deploy
 	@(cd k8s && helm upgrade ${TEST_RELEASE_NAME} . --install --namespace ${TEST_RELEASE_NAMESPACE} --create-namespace && kubectl rollout restart deployment ${TEST_RELEASE_NAME} -n ${TEST_RELEASE_NAMESPACE})

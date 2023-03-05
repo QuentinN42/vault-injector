@@ -58,15 +58,26 @@ function login_vault() {
 }
 
 
-# # Main
+# # K8s functions
+
+
+function get_current_pod_annotations() {
+    kubectl get "pods/$(hostname)" -o json | jq '.metadata.annotations'
+}
+
+
+# # Main functions
+
+
+function get_config() {
+    get_current_pod_annotations | jq -r '.["vault-injector.io/config"]' | jq
+}
 
 
 function main() {
     check_env VAULT_ADDR VAULT_PASS VAULT_USER
 
     login_vault || raise "Failed to login to vault"
-
-    bash
 }
 
-main
+# main

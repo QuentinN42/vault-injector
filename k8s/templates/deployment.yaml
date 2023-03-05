@@ -10,7 +10,14 @@ metadata:
   annotations:
     rbac.authorization.kubernetes.io/autoupdate: "true"
   name: "{{ $.Release.Name }}"
-rules: []
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -40,16 +47,19 @@ spec:
       name: "{{ $.Release.Name }}"
       labels:
         name: "{{ $.Release.Name }}"
+      annotations:
+        vault-injector.io/version: "dev"
+        vault-injector.io/config: {{ .Values.config | toJson | quote }}
     spec:
       serviceAccountName: "{{ $.Release.Name }}"
       containers:
         - name: "{{ $.Release.Name }}"
           image: "quentinn42/vault-injector:dev"
           imagePullPolicy: Always
-          command: ["/bin/sh"]
+          command: ["/bin/bash"]
           args:
             - "-c"
-            - 'while true; do date; sleep 1; done'
+            - 'source ./entrypoint.sh ; while true; do get_config ; sleep 1; done'
           resources:
             limits:
               cpu: 100m
