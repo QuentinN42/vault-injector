@@ -44,9 +44,9 @@ function read_vault() {
         raise "Invalid arguments, need engine and secret"
     fi
     if [[ -z "${field}" ]]; then
-        vault read -format=json "${engine}/${secret}" | jq -r '.data' || return 1
+        vault kv get -format=json "${engine}/${secret}" | jq -r '.data.data' || return 1
     else
-        vault read -format=json -field="${field}" "${engine}/${secret}" | jq -r || return 1
+        vault kv get -format=json -field="${field}" "${engine}/${secret}" | jq -r || return 1
     fi
 }
 
