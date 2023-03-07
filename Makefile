@@ -4,7 +4,7 @@ TEST_RELEASE_NAME=vault-injector
 TEST_RELEASE_NAMESPACE=vault-injector
 
 run: .env build
-	@docker run -it --rm --env-file=.env $(IMAGE_NAME) bash
+	@docker run -it --rm --env-file=.env $(IMAGE_NAME)
 
 build:
 	@docker build -t $(IMAGE_NAME) --progress plain .

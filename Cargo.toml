@@ -9,3 +9,4 @@ edition = "2021"
 kube = { version = "0.80.0", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.17.0", features = ["v1_26"] }
 tokio = { version = "1", features = ["full"] }
+gethostname = "0.4.1"

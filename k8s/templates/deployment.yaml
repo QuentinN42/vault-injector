@@ -52,17 +52,28 @@ spec:
         vault-injector.io/config: {{ .Values.config | toJson | quote }}
     spec:
       serviceAccountName: "{{ $.Release.Name }}"
-      containers:
-        - name: "{{ $.Release.Name }}"
+      initContainers:
+        - name: "vault-injector-init"
           image: "quentinn42/vault-injector:dev"
           imagePullPolicy: Always
-          command: ["/bin/bash"]
-          args:
-            - "-c"
-            - 'source ./entrypoint.sh ; while true; do get_config ; sleep 1; done'
           envFrom:
             - secretRef:
                 name: "vault"
+          resources:
+            limits:
+              cpu: 100m
+              memory: 250Mi
+            requests:
+              cpu: 10m
+              memory: 10Mi
+      containers:
+        - name: "{{ $.Release.Name }}"
+          image: "alpine:latest"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - 'echo "The values are A=$A - B=$B - C=$C" ; sleep 600'
           resources:
             limits:
               cpu: 100m

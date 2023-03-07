@@ -1,14 +1,16 @@
-use kube::{api::Api, Client};
-use k8s_openapi::api::core::v1::Pod;
+mod k8s;
+use k8s::get_pod_annotations;
 
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::try_default().await?;
-    let pods: Api<Pod> = Api::namespaced(client, "default");
+async fn main() {
+    let annotations = match get_pod_annotations().await {
+        Ok(data) => data,
+        Err(e) => {
+            println!("Error: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    let pod = pods.get("podname").await?;
-    dbg!(pod);
-
-    Ok(())
+    dbg!(annotations);
 }
