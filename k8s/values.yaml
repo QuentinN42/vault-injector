@@ -1,6 +1,7 @@
 ---
 
 config:
+  version: dev
   env:
     - name: C
       field: A

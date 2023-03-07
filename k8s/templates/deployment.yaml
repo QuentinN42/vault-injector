@@ -48,7 +48,6 @@ spec:
       labels:
         name: "{{ $.Release.Name }}"
       annotations:
-        vault-injector.io/version: "dev"
         vault-injector.io/config: {{ .Values.config | toJson | quote }}
     spec:
       serviceAccountName: "{{ $.Release.Name }}"

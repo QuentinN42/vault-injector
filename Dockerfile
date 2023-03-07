@@ -43,4 +43,4 @@ FROM scratch
 USER 1000
 COPY --from=build /build/target/x86_64-unknown-linux-musl/release/vault-injector /prog
 CMD ["/prog"]
-ENV RUST_LOG=debug
+ENV RUST_LOG=vault_injector
