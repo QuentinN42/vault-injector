@@ -81,6 +81,8 @@ function get_config() {
 
     config=$(echo "${annotations}" | jq -cr '.["vault-injector.io/config"]' || raise "Failed to get config")
 
+    to_add='[]'
+
     # Parse env
     for env in $(echo "${config}" | jq -rc '.env[] | .');
     do
@@ -106,8 +108,11 @@ function get_config() {
             raise "Invalid env config, need engine and secret"
         fi
         val=$(read_vault "${engine}" "${secret}" "${field}")
-        echo "${name} = ${val}"
+        data="{\"name\": \"${name}\", \"value\": \"${val}\"}"
+        to_add=$(echo "[${to_add},${data}]" | jq -s 'flatten')
     done
+
+    echo "${to_add}" | jq
 }
 
 
