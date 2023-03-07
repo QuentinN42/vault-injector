@@ -1,41 +1,50 @@
-use log::{debug, error, info};
-
+use log::{debug, error, info, trace};
 
 mod k8s;
-use k8s::get_pod_annotations;
+use k8s::{get_annotations, set_env};
 
 mod config;
 use config::parse_config;
 
+mod vault;
+use vault::resolve_env;
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
+    loop {
+        trace!("Running loop.");
+        match run().await {
+            Ok(_) => { },
+            Err(e) => {
+                error!("Error: {}", e);
+            }
+        };
+    }
+}
+
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Starting annotation collection.");
 
-    let annotations = match get_pod_annotations().await {
-        Ok(data) => data,
-        Err(e) => {
-            error!("Error: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let annotations = get_annotations().await?;
 
     if ! annotations.contains_key("vault-injector.io/config") {
-        info!("No vault-injector.io/config annotation found.");
-        debug!("Exiting.");
-        std::process::exit(0);
+        debug!("No vault-injector.io/config annotation found.");
+        return Ok(());
     }
     let config_str = annotations.get("vault-injector.io/config").unwrap();
 
-    let config = match parse_config(config_str) {
-        Ok(data) => data,
-        Err(e) => {
-            error!("Error: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let config = parse_config(config_str)?;
 
-    dbg!(config);
+    debug!("Config: {:?}", config);
+
+    let resolved = resolve_env(&config)?;
+
+    info!("Resolved {} variables to inject.", resolved.len());
+
+    set_env(&resolved).await?;
+
+    Ok(())
 }

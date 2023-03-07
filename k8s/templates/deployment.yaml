@@ -18,6 +18,16 @@ rules:
     verbs:
       - get
       - list
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -38,6 +48,8 @@ metadata:
   name: "{{ $.Release.Name }}"
   labels:
     name: "{{ $.Release.Name }}"
+  annotations:
+    vault-injector.io/config: {{ .Values.config | toJson | quote }}
 spec:
   selector:
     matchLabels:
@@ -47,24 +59,8 @@ spec:
       name: "{{ $.Release.Name }}"
       labels:
         name: "{{ $.Release.Name }}"
-      annotations:
-        vault-injector.io/config: {{ .Values.config | toJson | quote }}
     spec:
       serviceAccountName: "{{ $.Release.Name }}"
-      initContainers:
-        - name: "vault-injector-init"
-          image: "quentinn42/vault-injector:dev"
-          imagePullPolicy: Always
-          envFrom:
-            - secretRef:
-                name: "vault"
-          resources:
-            limits:
-              cpu: 100m
-              memory: 250Mi
-            requests:
-              cpu: 10m
-              memory: 10Mi
       containers:
         - name: "{{ $.Release.Name }}"
           image: "alpine:latest"
@@ -77,6 +73,19 @@ spec:
             limits:
               cpu: 100m
               memory: 250Mi
+            requests:
+              cpu: 10m
+              memory: 10Mi
+        - name: "vault-injector-init"
+          image: "quentinn42/vault-injector:dev"
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: "vault"
+          resources:
+            limits:
+              cpu: 10m
+              memory: 10Mi
             requests:
               cpu: 10m
               memory: 10Mi

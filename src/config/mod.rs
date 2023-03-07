@@ -1,39 +1,45 @@
-use serde::{Deserialize, Serialize, de::Error};
-
+use serde::{de::Error, Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Env {
+pub struct Env {
+    #[serde(default)]
+    pub name: String,
 
     #[serde(default)]
-    name: String,
+    pub field: String,
 
-    #[serde(default)]
-    field: String,
+    pub engine: String,
 
-    engine: String,
-
-    secret: String,
+    pub secret: String,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    version: String,
-    env: Vec<Env>,
+    pub version: String,
+    pub env: Vec<Env>,
 }
-
 
 pub fn parse_config(config_str: &str) -> Result<Config, serde_json::Error> {
     let config: Config = serde_json::from_str(config_str)?;
 
     let mut env: Vec<Env> = vec![];
     for e in config.env {
-        if e.name.is_empty() && e.field.is_empty(){
-            return Err(serde_json::Error::custom("Either name or field must be set for env"));
+        if e.name.is_empty() && e.field.is_empty() {
+            return Err(serde_json::Error::custom(
+                "Either name or field must be set for env",
+            ));
         }
         env.push(Env {
-            name: if e.name.is_empty() { e.field.clone() } else { e.name.clone() },
-            field: if e.field.is_empty() { e.name.clone() } else { e.field.clone() },
+            name: if e.name.is_empty() {
+                e.field.clone()
+            } else {
+                e.name.clone()
+            },
+            field: if e.field.is_empty() {
+                e.name.clone()
+            } else {
+                e.field.clone()
+            },
             engine: e.engine,
             secret: e.secret,
         });
