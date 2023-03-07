@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use vaultrs::{client::{VaultClient, VaultClientSettingsBuilder}, auth::userpass, api::{kv2::requests::{ReadSecretRequest}, self}, sys::wrapping::lookup, token::lookup_self};
+use vaultrs::{client::{VaultClient, VaultClientSettingsBuilder}, auth::userpass, api::{kv2::requests::{ReadSecretRequest}, self}};
 use log::{debug, trace, warn};
 
 use crate::config::Config;

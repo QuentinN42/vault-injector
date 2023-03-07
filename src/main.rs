@@ -10,8 +10,6 @@ use config::parse_config;
 mod vault;
 use vault::Vault;
 
-use crate::config::{Config, Env};
-
 static SLEEP_TIME: time::Duration = time::Duration::from_secs(10);
 
 #[tokio::main]
@@ -21,7 +19,7 @@ async fn main() {
         Ok(v) => v,
         Err(e) => {
             error!("Unable to log into vault : {}", e);
-            return;
+            std::process::exit(1);
         }
     };
 
