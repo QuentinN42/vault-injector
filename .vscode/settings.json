@@ -1,0 +1,10 @@
+{
+    "emeraldwalk.runonsave": {
+         "commands": [
+             {
+                 "cmd": "cargo fmt",
+                 "isShellCommand": false,
+            }
+        ]
+    }
+}

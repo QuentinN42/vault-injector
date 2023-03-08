@@ -5,7 +5,7 @@ metadata:
   name: "{{ $.Release.Name }}"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   annotations:
     rbac.authorization.kubernetes.io/autoupdate: "true"
@@ -30,12 +30,12 @@ rules:
       - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: "{{ $.Release.Name }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: "{{ $.Release.Name }}"
 subjects:
   - kind: ServiceAccount
@@ -48,8 +48,6 @@ metadata:
   name: "{{ $.Release.Name }}"
   labels:
     name: "{{ $.Release.Name }}"
-  annotations:
-    vault-injector.io/config: {{ .Values.config | toJson | quote }}
 spec:
   selector:
     matchLabels:
@@ -63,25 +61,47 @@ spec:
       serviceAccountName: "{{ $.Release.Name }}"
       containers:
         - name: "{{ $.Release.Name }}"
+          image: "quentinn42/vault-injector:dev"
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: "vault"
+          resources:
+            limits:
+              cpu: 10m
+              memory: 10Mi
+            requests:
+              cpu: 10m
+              memory: 10Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ $.Release.Name }}-target"
+  labels:
+    name: "{{ $.Release.Name }}-target"
+  annotations:
+    vault-injector.io/version: "< 1.0.0"
+    vault-injector.io/config: {{ .Values.config | toJson | quote }}
+spec:
+  selector:
+    matchLabels:
+      name: "{{ $.Release.Name }}-target"
+  template:
+    metadata:
+      name: "{{ $.Release.Name }}-target"
+      labels:
+        name: "{{ $.Release.Name }}-target"
+    spec:
+      serviceAccountName: "{{ $.Release.Name }}-target"
+      containers:
+        - name: "{{ $.Release.Name }}-target"
           image: "alpine:latest"
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh"]
           args:
             - "-c"
             - 'echo "The values are A=$A - B=$B - C=$C" ; sleep 600'
-          resources:
-            limits:
-              cpu: 100m
-              memory: 250Mi
-            requests:
-              cpu: 10m
-              memory: 10Mi
-        - name: "vault-injector-init"
-          image: "quentinn42/vault-injector:dev"
-          imagePullPolicy: Always
-          envFrom:
-            - secretRef:
-                name: "vault"
           resources:
             limits:
               cpu: 10m

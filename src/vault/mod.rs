@@ -1,19 +1,16 @@
-use std::error::Error;
+use std::{collections::BTreeMap, error::Error};
 
-use vaultrs::{client::{VaultClient, VaultClientSettingsBuilder}, auth::userpass, api::{kv2::requests::{ReadSecretRequest}, self}};
 use log::{debug, trace, warn};
+use vaultrs::{
+    api::{self, kv2::requests::ReadSecretRequest},
+    auth::userpass,
+    client::{VaultClient, VaultClientSettingsBuilder},
+};
 
 use crate::config::Config;
 
 pub struct Vault {
     client: VaultClient,
-}
-
-
-#[derive(Debug)]
-pub struct Env {
-    pub name: String,
-    pub value: String,
 }
 
 impl Vault {
@@ -28,12 +25,9 @@ impl Vault {
             .build()
             .unwrap();
         let tmp = VaultClient::new(settings)?;
-        let auth = userpass::login(
-            &tmp,
-            "userpass",
-            &user,
-            &pass,
-        ).await.unwrap();
+        let auth = userpass::login(&tmp, "userpass", &user, &pass)
+            .await
+            .unwrap();
 
         // then set the token as current context
         let settings = VaultClientSettingsBuilder::default()
@@ -46,28 +40,35 @@ impl Vault {
         Ok(Vault { client })
     }
 
-
-    pub async fn resolve_env(&self, _config: &Config) -> Result<Vec<Env>, Box<dyn Error>> {
+    pub async fn resolve_env(
+        &self,
+        _config: &Config,
+    ) -> Result<BTreeMap<String, String>, Box<dyn Error>> {
         trace!("Resolving env variables.");
-        let mut env: Vec<Env> = vec![];
-        let mut seen_names: Vec<String> = vec![];
+        let mut env = BTreeMap::<String, String>::new();
 
         for e in &_config.env {
             debug!("Resolving env variable: {}", e.name);
-            env.push(Env {
-                name: e.name.clone(),
-                value: self.get_secret(&e.engine, &e.secret, &e.field).await.unwrap(),
-            });
-            if seen_names.contains(&e.name) {
+            if env.contains_key(&e.name) {
                 warn!("Duplicate env variable name: {}", e.name);
             }
-            seen_names.push(e.name.clone());
+            env.insert(
+                e.name.clone(),
+                self.get_secret(&e.engine, &e.secret, &e.field)
+                    .await
+                    .unwrap(),
+            );
         }
 
         Ok(env)
     }
 
-    pub async fn get_secret(&self, engine: &str, secret: &str, field: &str) -> Result<String, Box<dyn Error>> {
+    pub async fn get_secret(
+        &self,
+        engine: &str,
+        secret: &str,
+        field: &str,
+    ) -> Result<String, Box<dyn Error>> {
         let endpoint = ReadSecretRequest::builder()
             .mount(engine)
             .path(secret)

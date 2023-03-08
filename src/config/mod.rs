@@ -15,10 +15,15 @@ pub struct Env {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub version: String,
     pub env: Vec<Env>,
 }
 
+/// # Parse the config
+///
+/// This function parses the config string and returns a Config struct.
+/// Config is a list of Env structs.
+/// Each env struct must define an engine and a secret to be looked up in your vault instance.
+/// You can omit the name or the field, but not both, it will so been infered from the other value.
 pub fn parse_config(config_str: &str) -> Result<Config, serde_json::Error> {
     let config: Config = serde_json::from_str(config_str)?;
 
@@ -45,8 +50,5 @@ pub fn parse_config(config_str: &str) -> Result<Config, serde_json::Error> {
         });
     }
 
-    Ok(Config {
-        version: config.version,
-        env: env,
-    })
+    Ok(Config { env })
 }
