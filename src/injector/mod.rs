@@ -10,7 +10,7 @@ use crate::k8s::{DeploymentSelector, K8S};
 use crate::vault::Vault;
 
 pub struct Injector {
-    version: VersionReq,
+    version: Version,
     vault: Vault,
     k8s: K8S,
 }
@@ -18,7 +18,7 @@ pub struct Injector {
 impl Injector {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let injector = Injector {
-            version: VersionReq::parse(clap::crate_version!())?,
+            version: Version::parse(clap::crate_version!())?,
             vault: Vault::new().await?,
             k8s: K8S::new().await?,
         };
@@ -95,7 +95,7 @@ impl Injector {
             return None;
         }
 
-        let version = match Version::parse(&annotations["vault-injector.io/version"]) {
+        let version = match VersionReq::parse(&annotations["vault-injector.io/version"]) {
             Ok(v) => v,
             Err(e) => {
                 warn!("Unable to parse version of deployment {}: {}", deploment, e);
@@ -103,7 +103,7 @@ impl Injector {
             }
         };
 
-        if !self.version.matches(&version) {
+        if !version.matches(&self.version) {
             debug!(
                 "Version of deployment {} does not match current executor: {} - {}",
                 deploment, self.version, version

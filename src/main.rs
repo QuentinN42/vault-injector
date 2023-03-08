@@ -8,6 +8,7 @@ mod vault;
 #[tokio::main]
 async fn main() {
     env_logger::init();
+
     trace!("Logger init.");
     debug!("Running with version {}", clap::crate_version!());
 
