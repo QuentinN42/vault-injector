@@ -1,10 +1,6 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display, hash};
 
-use gethostname::gethostname;
-use k8s_openapi::api::{
-    apps::v1::{Deployment, ReplicaSet},
-    core::v1::Pod,
-};
+use k8s_openapi::api::apps::v1::Deployment;
 use kube::{
     api::{Api, Patch, PatchParams},
     Client, ResourceExt,
@@ -12,57 +8,73 @@ use kube::{
 use log::debug;
 
 pub struct K8S {
-    pod_api: Api<Pod>,
-    replicaset_api: Api<ReplicaSet>,
     deployment_api: Api<Deployment>,
-    hostname: String,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, hash::Hash)]
+pub struct DeploymentSelector {
+    name: String,
+    namespace: String,
+}
+
+impl DeploymentSelector {
+    pub fn new(dep: &Deployment, default_namespace: &String) -> Self {
+        DeploymentSelector {
+            name: dep.name_any(),
+            namespace: dep.namespace().unwrap_or(default_namespace.clone()),
+        }
+    }
+
+    pub async fn get_deployment(&self) -> Result<Deployment, Box<dyn std::error::Error>> {
+        let dep = self.get_api().await?.get(&self.name).await?;
+        Ok(dep)
+    }
+
+    pub async fn get_api(&self) -> Result<Api<Deployment>, Box<dyn std::error::Error>> {
+        let deps: Api<Deployment> = Api::namespaced(Client::try_default().await?, &self.namespace);
+        Ok(deps)
+    }
+}
+
+impl Display for DeploymentSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.name, self.namespace)
+    }
 }
 
 impl K8S {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(K8S {
-            pod_api: Api::all(Client::try_default().await?),
-            replicaset_api: Api::all(Client::try_default().await?),
             deployment_api: Api::all(Client::try_default().await?),
-            hostname: gethostname().into_string().unwrap(),
         })
-    }
-
-    async fn get_deployment(&self) -> Result<Deployment, Box<dyn std::error::Error>> {
-        let pod = self.pod_api.get(&self.hostname).await?;
-
-        let repliacset = pod.metadata.owner_references.unwrap()[0].clone();
-
-        let rs = self.replicaset_api.get(&repliacset.name).await?;
-
-        let deployment = rs.metadata.owner_references.unwrap()[0].clone();
-
-        let dep = self.deployment_api.get(&deployment.name).await?;
-
-        Ok(dep)
     }
 
     pub async fn get_annotations(
         &self,
-    ) -> Result<BTreeMap<String, BTreeMap<String, String>>, Box<dyn std::error::Error>> {
-        let dep = self.get_deployment().await?;
-
+    ) -> Result<BTreeMap<DeploymentSelector, BTreeMap<String, String>>, Box<dyn std::error::Error>>
+    {
         let mut annotations = BTreeMap::new();
-        annotations.insert("one".to_string(), dep.metadata.annotations.unwrap());
+        let deps = self.deployment_api.list(&Default::default()).await?;
+        let default_namespace = "default".to_string();
+
+        for dep in deps {
+            let key = DeploymentSelector::new(&dep, &default_namespace);
+            let value = match dep.metadata.annotations {
+                Some(x) => x,
+                None => BTreeMap::new(),
+            };
+            annotations.insert(key, value);
+        }
 
         Ok(annotations)
-        // match dep.metadata.annotations {
-        //     Some(annotations) => Ok(annotations),
-        //     None => Ok(BTreeMap::new()),
-        // }
     }
 
     pub async fn set_env(
         &self,
+        deployment: &DeploymentSelector,
         envs: &BTreeMap<String, String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let dep = self.get_deployment().await?;
-        let dep_name = dep.name_any();
+        let dep = deployment.get_deployment().await?;
 
         let cts = dep.spec.unwrap().template.spec.unwrap().containers;
         let patch = serde_json::json!({
@@ -91,8 +103,11 @@ impl K8S {
         let params = PatchParams::apply("vault-injector").force();
         let patch = Patch::Apply(&patch);
 
-        let deps: Api<Deployment> = Api::default_namespaced(Client::try_default().await?);
-        let o_patched = deps.patch(&dep_name, &params, &patch).await?;
+        let o_patched = deployment
+            .get_api()
+            .await?
+            .patch(&deployment.name, &params, &patch)
+            .await?;
         debug!("Patched deployment : {:?}", o_patched);
         Ok(())
     }

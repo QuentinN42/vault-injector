@@ -6,7 +6,7 @@ use log::{debug, error, trace, warn};
 use semver::{Version, VersionReq};
 
 use crate::config::parse_config;
-use crate::k8s::K8S;
+use crate::k8s::{DeploymentSelector, K8S};
 use crate::vault::Vault;
 
 pub struct Injector {
@@ -59,7 +59,8 @@ impl Injector {
             for (k, v) in env.iter() {
                 trace!("  Generated env {}={}", k, v);
             }
-            // self.k8s.set_env(&secrets).await?;
+
+            self.k8s.set_env(&key, &env).await?;
         }
 
         Ok(())
@@ -67,7 +68,7 @@ impl Injector {
 
     async fn generate_env(
         &self,
-        deploment: &str,
+        deploment: &DeploymentSelector,
         annotations: &BTreeMap<String, String>,
     ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
         let config = match self.get_config_if_available(deploment, annotations) {
@@ -75,14 +76,18 @@ impl Injector {
             None => return Ok(BTreeMap::new()),
         };
 
-        let secrets = self.vault.resolve_env(&config).await?;
-
-        Ok(BTreeMap::new())
+        match self.vault.resolve_env(&config).await {
+            Ok(env) => Ok(env),
+            Err(e) => {
+                warn!("Unable to resolve env of deployment {}: {}", deploment, e);
+                Ok(BTreeMap::new())
+            }
+        }
     }
 
     fn get_config_if_available(
         &self,
-        deploment: &str,
+        deploment: &DeploymentSelector,
         annotations: &BTreeMap<String, String>,
     ) -> Option<crate::config::Config> {
         if !annotations.contains_key("vault-injector.io/version") {
