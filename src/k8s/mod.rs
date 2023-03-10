@@ -1,69 +1,44 @@
-use std::{collections::BTreeMap, fmt::Display, hash};
+use std::collections::BTreeMap;
 
-use k8s_openapi::api::apps::v1::Deployment;
+use base64::{engine::general_purpose, Engine};
+use k8s_openapi::api::core::v1::Secret;
 use kube::{
     api::{Api, Patch, PatchParams},
-    Client, ResourceExt,
+    Client,
 };
+
+pub mod selector;
 use log::debug;
+pub use selector::Selector;
 
 pub struct K8S {
-    deployment_api: Api<Deployment>,
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, hash::Hash)]
-pub struct DeploymentSelector {
-    name: String,
-    namespace: String,
-}
-
-impl DeploymentSelector {
-    pub fn new(dep: &Deployment, default_namespace: &String) -> Self {
-        DeploymentSelector {
-            name: dep.name_any(),
-            namespace: dep.namespace().unwrap_or(default_namespace.clone()),
-        }
-    }
-
-    pub async fn get_deployment(&self) -> Result<Deployment, Box<dyn std::error::Error>> {
-        let dep = self.get_api().await?.get(&self.name).await?;
-        Ok(dep)
-    }
-
-    pub async fn get_api(&self) -> Result<Api<Deployment>, Box<dyn std::error::Error>> {
-        let deps: Api<Deployment> = Api::namespaced(Client::try_default().await?, &self.namespace);
-        Ok(deps)
-    }
-}
-
-impl Display for DeploymentSelector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.namespace)
-    }
+    client: Client,
 }
 
 impl K8S {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(K8S {
-            deployment_api: Api::all(Client::try_default().await?),
+            client: Client::try_default().await?,
         })
+    }
+
+    pub fn secret_api(&self) -> Api<Secret> {
+        Api::all(self.client.clone())
     }
 
     pub async fn get_annotations(
         &self,
-    ) -> Result<BTreeMap<DeploymentSelector, BTreeMap<String, String>>, Box<dyn std::error::Error>>
-    {
+    ) -> Result<BTreeMap<Selector, BTreeMap<String, String>>, Box<dyn std::error::Error>> {
         let mut annotations = BTreeMap::new();
-        let deps = self.deployment_api.list(&Default::default()).await?;
-        let default_namespace = "default".to_string();
 
-        for dep in deps {
-            let key = DeploymentSelector::new(&dep, &default_namespace);
-            let value = match dep.metadata.annotations {
-                Some(x) => x,
-                None => BTreeMap::new(),
-            };
-            annotations.insert(key, value);
+        for object in self.secret_api().list(&Default::default()).await? {
+            annotations.insert(
+                Selector::new(&object),
+                match object.metadata.annotations {
+                    Some(annotations) => annotations,
+                    None => BTreeMap::new(),
+                },
+            );
         }
 
         Ok(annotations)
@@ -71,44 +46,32 @@ impl K8S {
 
     pub async fn set_env(
         &self,
-        deployment: &DeploymentSelector,
+        object: &Selector,
         envs: &BTreeMap<String, String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let dep = deployment.get_deployment().await?;
+        debug!("Setting env for object {:}", object);
+        for e in envs.iter() {
+            debug!("  {}={}", e.0, e.1);
+        }
 
-        let cts = dep.spec.unwrap().template.spec.unwrap().containers;
         let patch = serde_json::json!({
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "spec": {
-                "template": {
-                    "spec": {
-                        "containers": cts.iter().map(|c| {
-                            serde_json::json!({
-                                "name": c.name,
-                                "env": envs.iter().map(|(k, v)| {
-                                    serde_json::json!({
-                                        "name": k,
-                                        "value": v,
-                                    })
-                                }).collect::<Vec<_>>(),
-                            })
-                        }).collect::<Vec<_>>(),
-                    }
-                }
-
-            }
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "data": envs.iter().map(|(k, v)| (k.to_owned(), encode(v))).collect::<BTreeMap<String, String>>(),
         });
 
-        let params = PatchParams::apply("vault-injector").force();
+        let params = PatchParams::apply("vault-injector");
         let patch = Patch::Apply(&patch);
 
-        let o_patched = deployment
-            .get_api()
-            .await?
-            .patch(&deployment.name, &params, &patch)
+        let o_patched = object
+            .get_api(&self.client)
+            .patch(&object.name, &params, &patch)
             .await?;
         debug!("Patched deployment : {:?}", o_patched);
         Ok(())
     }
+}
+
+fn encode(txt: &str) -> String {
+    general_purpose::STANDARD.encode(txt.as_bytes())
 }

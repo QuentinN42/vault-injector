@@ -6,7 +6,7 @@ use log::{debug, error, trace, warn};
 use semver::{Version, VersionReq};
 
 use crate::config::parse_config;
-use crate::k8s::{DeploymentSelector, K8S};
+use crate::k8s::{Selector, K8S};
 use crate::vault::Vault;
 
 pub struct Injector {
@@ -44,7 +44,7 @@ impl Injector {
         let annotations = self.k8s.get_annotations().await?;
 
         for (key, value) in annotations.iter() {
-            trace!("Found deployment {}", key);
+            trace!("Found object {}", key);
             for (k, v) in value.iter() {
                 trace!("  Found annotation {}={}", k, v);
             }
@@ -68,7 +68,7 @@ impl Injector {
 
     async fn generate_env(
         &self,
-        deploment: &DeploymentSelector,
+        deploment: &Selector,
         annotations: &BTreeMap<String, String>,
     ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
         let config = match self.get_config_if_available(deploment, annotations) {
@@ -79,7 +79,7 @@ impl Injector {
         match self.vault.resolve_env(&config).await {
             Ok(env) => Ok(env),
             Err(e) => {
-                warn!("Unable to resolve env of deployment {}: {}", deploment, e);
+                warn!("Unable to resolve env of {}: {}", deploment, e);
                 Ok(BTreeMap::new())
             }
         }
@@ -87,7 +87,7 @@ impl Injector {
 
     fn get_config_if_available(
         &self,
-        deploment: &DeploymentSelector,
+        deploment: &Selector,
         annotations: &BTreeMap<String, String>,
     ) -> Option<crate::config::Config> {
         if !annotations.contains_key("vault-injector.io/version") {
@@ -98,14 +98,14 @@ impl Injector {
         let version = match VersionReq::parse(&annotations["vault-injector.io/version"]) {
             Ok(v) => v,
             Err(e) => {
-                warn!("Unable to parse version of deployment {}: {}", deploment, e);
+                warn!("Unable to parse version of {}: {}", deploment, e);
                 return None;
             }
         };
 
         if !version.matches(&self.version) {
             debug!(
-                "Version of deployment {} does not match current executor: {} - {}",
+                "Version of {} does not match current executor: {} - {}",
                 deploment, self.version, version
             );
             return None;
@@ -119,7 +119,7 @@ impl Injector {
         match parse_config(&annotations["vault-injector.io/config"]) {
             Ok(c) => Some(c),
             Err(e) => {
-                warn!("Unable to parse config of deployment {}: {}", deploment, e);
+                warn!("Unable to parse config of {}: {}", deploment, e);
                 None
             }
         }
