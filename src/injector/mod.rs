@@ -1,6 +1,4 @@
-use core::time;
 use std::collections::BTreeMap;
-use std::thread;
 
 use log::{debug, error, trace, warn};
 use semver::{Version, VersionReq};
@@ -27,15 +25,12 @@ impl Injector {
     }
 
     pub async fn run(&self) {
-        loop {
-            match self.run_once().await {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("Error: {}", e);
-                }
-            };
-            sleep(10);
-        }
+        match self.run_once().await {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Error: {}", e);
+            }
+        };
     }
 
     async fn run_once(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -124,8 +119,4 @@ impl Injector {
             }
         }
     }
-}
-
-fn sleep(seconds: u64) {
-    thread::sleep(time::Duration::from_secs(seconds));
 }
