@@ -42,21 +42,24 @@ impl Vault {
 
     pub async fn resolve_env(
         &self,
-        _config: &Config,
+        config: &Config,
     ) -> Result<BTreeMap<String, String>, Box<dyn Error>> {
         trace!("Resolving env variables.");
         let mut env = BTreeMap::<String, String>::new();
 
-        for e in &_config.env {
+        for e in &config.env {
             debug!("Resolving env variable: {}", e.name);
             if env.contains_key(&e.name) {
                 warn!("Duplicate env variable name: {}", e.name);
             }
             env.insert(
                 e.name.clone(),
-                self.get_secret(&e.engine, &e.secret, &e.field)
-                    .await
-                    .unwrap(),
+                serde_json::from_str(
+                    &self
+                        .get_secret(&e.engine, &e.secret, &e.field)
+                        .await
+                        .unwrap(),
+                )?,
             );
         }
 
