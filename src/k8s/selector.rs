@@ -1,4 +1,4 @@
-use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::api::{apps::v1::Deployment, core::v1::Secret};
 use kube::{api::Api, Client, ResourceExt};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, std::hash::Hash)]
@@ -23,6 +23,20 @@ impl Selector {
         match &self.namespace {
             Some(namespace) => Api::namespaced(client.clone(), namespace),
             None => Api::default_namespaced(client.clone()),
+        }
+    }
+
+    pub fn get_deployment_api(&self, client: &Client) -> Api<Deployment> {
+        match &self.namespace {
+            Some(namespace) => Api::namespaced(client.clone(), namespace),
+            None => Api::default_namespaced(client.clone()),
+        }
+    }
+
+    pub async fn get_nb_of_modifications(&self, client: &Client) -> Result<usize, kube::Error> {
+        match &self.get(client).await?.metadata.managed_fields {
+            Some(managed_fields) => Ok(managed_fields.len()),
+            None => Ok(0),
         }
     }
 }

@@ -39,23 +39,13 @@ impl Injector {
         let annotations = self.k8s.get_annotations().await?;
 
         for (key, value) in annotations.iter() {
-            trace!("Found object {}", key);
-            for (k, v) in value.iter() {
-                trace!("  Found annotation {}={}", k, v);
-            }
-
             let env = self.generate_env(key, value).await?;
 
             if env.is_empty() {
-                trace!("No env to inject.");
                 continue;
             }
 
-            for (k, v) in env.iter() {
-                trace!("  Generated env {}={}", k, v);
-            }
-
-            self.k8s.set_env(&key, &env).await?;
+            self.k8s.set_env_and_restart_services(&key, &env).await?;
         }
 
         Ok(())
@@ -86,7 +76,6 @@ impl Injector {
         annotations: &BTreeMap<String, String>,
     ) -> Option<crate::config::Config> {
         if !annotations.contains_key("vault-injector.io/version") {
-            debug!("No vault-injector.io/version annotation found.");
             return None;
         }
 
@@ -107,7 +96,6 @@ impl Injector {
         }
 
         if !annotations.contains_key("vault-injector.io/config") {
-            debug!("No vault-injector.io/config annotation found.");
             return None;
         }
 

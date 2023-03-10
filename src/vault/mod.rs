@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, error::Error};
 
-use log::{debug, trace, warn};
+use log::{debug, warn};
 use vaultrs::{
     api::{self, kv2::requests::ReadSecretRequest},
     auth::userpass,
@@ -44,11 +44,10 @@ impl Vault {
         &self,
         config: &Config,
     ) -> Result<BTreeMap<String, String>, Box<dyn Error>> {
-        trace!("Resolving env variables.");
         let mut env = BTreeMap::<String, String>::new();
 
         for e in &config.env {
-            debug!("Resolving env variable: {}", e.name);
+            debug!("Resolving env var: {}", e.name);
             if env.contains_key(&e.name) {
                 warn!("Duplicate env variable name: {}", e.name);
             }
