@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
+use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::Secret;
 use log::{debug, error, trace, warn};
 use semver::{Version, VersionReq};
 
 use crate::config::parse_config;
+use crate::k8s::restart_manager::RestartManager;
 use crate::k8s::{Selector, K8S};
 use crate::vault::Vault;
 
@@ -38,6 +40,7 @@ impl Injector {
         trace!("Starting annotation collection.");
 
         let annotations = self.k8s.get_annotations().await?;
+        let mut restart_manager = RestartManager::<Deployment>::new(&self.k8s.client());
 
         for (key, value) in annotations.iter() {
             let env = self.generate_env(key, value).await?;
@@ -46,9 +49,13 @@ impl Injector {
                 continue;
             }
 
-            self.k8s.set_env_and_restart_services(&key, &env).await?;
+            let need_restart = self.k8s.set_env(&key, &env).await?;
+            if need_restart {
+                restart_manager.add_linked_services(&key).await;
+            }
         }
 
+        restart_manager.restart().await;
         Ok(())
     }
 
