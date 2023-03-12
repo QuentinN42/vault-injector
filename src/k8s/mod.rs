@@ -22,16 +22,14 @@ impl K8S {
         })
     }
 
-    pub fn secret_api(&self) -> Api<Secret> {
-        Api::all(self.client.clone())
-    }
-
     pub async fn get_annotations(
         &self,
-    ) -> Result<BTreeMap<Selector, BTreeMap<String, String>>, Box<dyn std::error::Error>> {
+    ) -> Result<BTreeMap<Selector<Secret>, BTreeMap<String, String>>, Box<dyn std::error::Error>>
+    {
         let mut annotations = BTreeMap::new();
+        let secret_api: Api<Secret> = Api::all(self.client.clone());
 
-        for object in self.secret_api().list(&Default::default()).await? {
+        for object in secret_api.list(&Default::default()).await? {
             annotations.insert(
                 Selector::new(&object),
                 match object.metadata.annotations {
@@ -46,7 +44,7 @@ impl K8S {
 
     pub async fn set_env(
         &self,
-        object: &Selector,
+        object: &Selector<Secret>,
         envs: &BTreeMap<String, String>,
     ) -> Result<Secret, kube::Error> {
         let patch = serde_json::json!({
@@ -60,22 +58,22 @@ impl K8S {
 
         object
             .get_api(&self.client)
-            .patch(&object.name, &params, &patch)
+            .patch(&object.name(), &params, &patch)
             .await
     }
 
     pub async fn set_env_and_restart_services(
         &self,
-        object: &Selector,
+        object: &Selector<Secret>,
         envs: &BTreeMap<String, String>,
     ) -> Result<(), kube::Error> {
         debug!("Setting env for object {:}", object);
 
-        let nb_modified_before = object.get_nb_of_modifications(&self.client).await?;
+        let last_modified_before = object.get_last_update(&self.client).await?;
         self.set_env(object, envs).await.unwrap();
-        let nb_modified_after = object.get_nb_of_modifications(&self.client).await?;
+        let last_modified_after = object.get_last_update(&self.client).await?;
 
-        if nb_modified_before != nb_modified_after {
+        if last_modified_before != last_modified_after {
             info!("Secret {} changed, searching linked objects.", object);
             self.restart_linked_to(object).await?;
         }
@@ -83,11 +81,19 @@ impl K8S {
         Ok(())
     }
 
-    pub async fn restart_linked_to(&self, object: &Selector) -> Result<(), kube::Error> {
-        let api = object.get_deployment_api(&self.client);
+    pub async fn restart_linked_to(&self, object: &Selector<Secret>) -> Result<(), kube::Error> {
+        let api: Api<Deployment> = match object.namespace() {
+            Some(namespace) => Api::namespaced(self.client.clone(), &namespace),
+            None => Api::default_namespaced(self.client.clone()),
+        };
         let deployments = api.list(&Default::default()).await?;
         for deployment in deployments {
-            if need_restart_deployment(&deployment, &object.name) {
+            debug!("Checking deployment {}.", deployment.name_any());
+            if need_restart_deployment(&deployment, &object.name()) {
+                debug!(
+                    "Deployment {} needs to be restarted.",
+                    deployment.name_any()
+                );
                 api.restart(&deployment.name_any()).await.unwrap();
                 info!("Restarted deployment {}.", deployment.name_any());
             }
